@@ -2,6 +2,7 @@
 #define LANG_UTILS_MEMORY_H
 
 #include <memory>
+#include <vector>
 
 namespace lang_utils {
 
@@ -32,6 +33,36 @@ public:
     untyped_unique_ptr& operator=(untyped_unique_ptr &&other) {
         m_ptr = std::move(other.m_ptr);
     }
+};
+
+class untyped_pool {
+public:
+    template <typename BASE>
+    BASE& add(const BASE *ptr) {
+        m_ptrs.push_back(untyped_unique_ptr(ptr));
+        return *ptr;
+    }
+
+    template <typename BASE>
+    BASE& add(BASE &&obj) {
+        typename std::decay<BASE>::type *ptr =
+            new typename std::decay<BASE>::type(std::move(obj));
+
+        m_ptrs.push_back(untyped_unique_ptr(ptr));
+        return *ptr;
+    }
+
+    template <typename BASE, typename ...ARGS>
+    BASE& emplace(ARGS&& ...args) {
+        typename std::decay<BASE>::type *ptr =
+            new typename std::decay<BASE>::type(args...);
+
+        m_ptrs.push_back(untyped_unique_ptr(ptr));
+        return *ptr;
+    }
+    
+private:
+    std::vector<untyped_unique_ptr> m_ptrs;
 };
 
 }
