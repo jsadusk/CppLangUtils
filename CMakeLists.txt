@@ -9,9 +9,13 @@ link_libraries(${Boost_LIBRARIES})
 
 add_definitions(-DBOOST_TEST_DYN_LINK)
 add_executable(test_tuple ${PROJECT_SOURCE_DIR}/src/unit_test/test_tuple.cpp)
+add_executable(test_memory ${PROJECT_SOURCE_DIR}/src/unit_test/test_memory.cpp)
 enable_testing()
 add_test(
   NAME test_tuple
+  COMMAND ${CMAKE_BINARY_DIR}/test_tuple)
+add_test(
+  NAME test_memory
   COMMAND ${CMAKE_BINARY_DIR}/test_tuple)
 
   
