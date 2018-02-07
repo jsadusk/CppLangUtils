@@ -1,5 +1,5 @@
-#ifndef CPP_LANG_UTILS_TUPLE_H
-#define CPP_LANG_UTILS_TUPLE_H
+#ifndef LANG_UTILS_TUPLE_H
+#define LANG_UTILS_TUPLE_H
 
 #include <tuple>
 #include <utility>
