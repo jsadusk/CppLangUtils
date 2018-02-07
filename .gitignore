@@ -33,3 +33,6 @@
 
 # Editor backup files
 *~
+
+#build dir
+build/
