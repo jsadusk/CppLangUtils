@@ -8,7 +8,7 @@
 
 using namespace lang_utils;
 
-BOOST_AUTO_TEST_CASE(test_dynamic_iterator_basic) {
+BOOST_AUTO_TEST_CASE(test_dynamic_iterator) {
     std::vector<int> one {1, 3, 5};
     std::list<int> two;
 
@@ -59,3 +59,28 @@ BOOST_AUTO_TEST_CASE(test_dynamic_iterator_basic) {
     BOOST_REQUIRE(iters[1] == dynamic_iterator<int>(two.end()));
 }
 
+BOOST_AUTO_TEST_CASE(test_dynamic_collection) {
+    std::vector<int> one {1, 3, 5};
+    std::list<int> two;
+
+    two.push_back(2);
+    two.push_back(4);
+    two.push_back(6);
+
+    dynamic_collection<int> dyn;
+
+    dyn.set(one);
+
+    auto iter1 = one.begin();
+    for (int i : dyn) {
+        BOOST_REQUIRE(i == *iter1);
+        ++iter1;
+    }
+
+    dyn.set(two);
+    auto iter2 = two.begin();
+    for (int i : dyn) {
+        BOOST_REQUIRE(i == *iter2);
+        ++iter2;
+    }
+}

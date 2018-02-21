@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <cassert>
 #include <memory>
+#include <functional>
 
 namespace lang_utils {
 
@@ -16,7 +17,7 @@ public:
     using pointer_type = typename std::add_pointer<value_type>::type;
 
     //for now, make this adaptable later
-    using iterator_category = std::forward_iterator_tag;
+    using iterator_category = std::bidirectional_iterator_tag;
 
 private:
     class wrapper_base {
@@ -135,6 +136,49 @@ make_dynamic_iterator(BASE &&base) {
     return dynamic_iterator<typename std::iterator_traits<BASE>::value_type>(
                std::forward<BASE>(base));
 }
+
+template <typename VALUE>
+class dynamic_collection {
+public:
+    dynamic_collection() {}
+    template <typename COLLECTION>
+
+    dynamic_collection(COLLECTION &&collection) {
+        set(collection);
+    }
+
+    dynamic_collection(dynamic_collection &&other)
+        : m_get_begin(std::move(other.m_get_begin)),
+          m_get_end(std::move(other.m_get_end)) {}
+    
+    dynamic_collection(const dynamic_collection &other)
+        : m_get_begin(other.m_get_begin),
+          m_get_end(other.m_get_end) {}
+    
+    using iterator = dynamic_iterator<VALUE>;
+
+    template <typename COLLECTION>
+    void set(COLLECTION &collection) {
+        static_assert(std::is_same<
+           typename std::iterator_traits<
+                      typename COLLECTION::iterator>::value_type,
+           VALUE>::value);
+        m_get_begin = [&collection]() -> iterator {
+            return make_dynamic_iterator(collection.begin());
+        };
+        m_get_end = [&collection]() -> iterator {
+            return make_dynamic_iterator(collection.end());
+        };
+    }
+
+    iterator begin() { return m_get_begin(); }
+    iterator end() { return m_get_end(); }
+    
+
+private:
+    std::function<iterator()> m_get_begin;
+    std::function<iterator()> m_get_end;
+};
 
 }
 
