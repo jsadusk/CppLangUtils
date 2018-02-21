@@ -5,12 +5,19 @@
 
 class FlagDestroySet {
 public:
-    FlagDestroySet(bool &flag) : m_flag(flag) {}
+    FlagDestroySet(bool &flag) : m_flag(&flag) {}
+
+    FlagDestroySet(FlagDestroySet &&other) : m_flag(other.m_flag) {
+        other.m_flag = nullptr;
+    }
+    
     ~FlagDestroySet() {
-        m_flag = !m_flag;
+        if (m_flag != nullptr) {
+            *m_flag = !*m_flag;
+        }
     }
 private:
-    bool &m_flag;
+    bool *m_flag;
 };
 
 BOOST_AUTO_TEST_CASE(test_untyped_unique_ptr) {

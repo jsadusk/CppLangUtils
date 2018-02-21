@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <type_traits>
 
 namespace lang_utils {
 
@@ -38,13 +39,13 @@ public:
 class untyped_pool {
 public:
     template <typename BASE>
-    BASE& add(const BASE *ptr) {
+    BASE& push(BASE *ptr) {
         m_ptrs.push_back(untyped_unique_ptr(ptr));
         return *ptr;
     }
 
     template <typename BASE>
-    BASE& add(BASE &&obj) {
+    BASE& push(BASE &&obj) {
         typename std::decay<BASE>::type *ptr =
             new typename std::decay<BASE>::type(std::move(obj));
 
