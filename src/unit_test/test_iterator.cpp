@@ -84,3 +84,18 @@ BOOST_AUTO_TEST_CASE(test_dynamic_collection) {
         ++iter2;
     }
 }
+
+BOOST_AUTO_TEST_CASE(test_slice) {
+    std::vector<int> data {1, 2, 3, 4, 5, 6, 7, 8};
+
+    auto b = data.begin() + 3;
+
+    int expected = 4;
+
+    for (int found : make_slice(b, b + 4)) {
+        BOOST_CHECK_EQUAL(expected, found);
+        ++expected;
+    }
+
+    BOOST_CHECK_EQUAL(expected, 8);
+}

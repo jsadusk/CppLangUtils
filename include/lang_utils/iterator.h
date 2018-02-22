@@ -180,6 +180,32 @@ private:
     std::function<iterator()> m_get_end;
 };
 
+template <typename ITER>
+class slice {
+public:
+    using iterator = ITER;
+
+    //templating in order to use perfect forwarding
+    template <typename B, typename E>
+    slice(B &&b, E &&e)
+        : m_begin(std::forward<B>(b)), m_end(std::forward<E>(e)) {}
+
+    iterator begin() const { return m_begin; }
+    iterator end() const { return m_end; }
+private:
+    iterator m_begin;
+    iterator m_end;
+};
+
+template <typename B, typename E>
+auto make_slice(B &&b, E &&e) {
+    static_assert(std::is_same<typename std::decay<B>::type,
+                               typename std::decay<E>::type>::value);
+
+    return slice<typename std::decay<B>::type>(std::forward<B>(b),
+                                               std::forward<E>(e));
+}
+
 }
 
 #endif
