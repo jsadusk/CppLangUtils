@@ -7,23 +7,11 @@
 
 namespace lang_utils {
 
-template <template <typename> typename TRANSFORM, typename ORIG>
-class transform_tuple_type {
-private:
-    template <typename INDEX_SEQ> struct Impl;
+template <template <typename> typename, typename> struct transform_tuple_type;
 
-    template <size_t ...INDICES>
-    struct Impl<std::index_sequence<INDICES...>> {
-        using type =
-            std::tuple<
-                typename TRANSFORM<
-                    typename std::tuple_element<INDICES, ORIG>::type>::type...>;
-    };
-
-public:
-    using type =
-        typename Impl<std::make_index_sequence<
-                          std::tuple_size<ORIG>::value>>::type;
+template <template <typename> typename TRANSFORM, typename... ARGS>
+struct transform_tuple_type<TRANSFORM, std::tuple<ARGS...>> {
+    using type = std::tuple<typename TRANSFORM<ARGS>::type...>;
 };
 
 template <size_t N>
@@ -52,8 +40,9 @@ auto slice_tuples(TUPLES&&... tuples) {
 template <typename FUNC, size_t... INDS, typename... TUPLES>
 void foreach_tuple_impl(FUNC&& func, std::index_sequence<INDS...>,
                         TUPLES&&... tuples) {
-    static_cast<void>((... && (static_cast<void>(std::apply(std::forward<FUNC>(func),
-               slice_tuples<INDS>(std::forward<TUPLES>(tuples)...))), true)));
+    static_cast<void>((... && (static_cast<void>(
+        std::apply(std::forward<FUNC>(func),
+                   slice_tuples<INDS>(std::forward<TUPLES>(tuples)...))), true)));
 }
 
 template <typename FUNC, typename... TUPLES>
@@ -63,32 +52,22 @@ void foreach_tuple(FUNC&& func, TUPLES&&... tuples) {
                        std::forward<TUPLES>(tuples)...);
 }
 
-template <typename FUNC, typename ...TUPLES>
-class foreach_tuple_i_helper {
-    template <typename F, typename ...T>
-    friend void foreach_tuple_i(F&&, T&&...);
-    
-    void operator()(std::index_sequence<>, FUNC &&func,
-                    TUPLES&& ...tuples) { }
+template <typename FUNC, size_t... INDS, typename... TUPLES>
+void foreach_tuple_i_impl(FUNC&& func,
+                          std::index_sequence<INDS...>,
+                          TUPLES&&... tuples) {
+    static_cast<void>((... && (static_cast<void>(
+         std::apply(std::forward<FUNC>(func),
+                    std::tuple_cat(std::tuple(INDS),
+                                   slice_tuples<INDS>(std::forward<TUPLES>(tuples)...)))),
+         true)));
+}
 
-    template <size_t POS, size_t ...INDICES>
-    void operator()(std::index_sequence<POS, INDICES...>, FUNC &&func,
-                  TUPLES&& ...tuples) {
-        func(POS, std::get<POS>(tuples)...);
-        (*this)(std::index_sequence<INDICES...>(),
-                std::forward<FUNC>(func),
-                std::forward<TUPLES>(tuples)...);
-    }
-    
-};
-
-template <typename FUNC, typename ...TUPLES>
-void foreach_tuple_i(FUNC &&func, TUPLES&& ...tuples) {
-    static const size_t size = tuple_sizes_equal<TUPLES...>::value;
-
-    foreach_tuple_i_helper<FUNC, TUPLES...>()(std::make_index_sequence<size>(),
-                                              std::forward<FUNC>(func),
-                                              std::forward<TUPLES>(tuples)...);
+template <typename FUNC, size_t... INDS, typename... TUPLES>
+void foreach_tuple_i(FUNC&& func, TUPLES&&... tuples) {
+    foreach_tuple_i_impl(std::forward<FUNC>(func),
+                         std::make_index_sequence<tuple_sizes_equal_v<TUPLES...>>{},
+                         std::forward<TUPLES>(tuples)...);
 }
 
 template <typename FUNC, typename ...TUPLES>
