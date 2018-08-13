@@ -2,6 +2,7 @@
 #define LANG_UTILS_TUPLE_H
 
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 namespace lang_utils {
@@ -25,52 +26,41 @@ public:
                           std::tuple_size<ORIG>::value>>::type;
 };
 
-template <typename ...TUPLES>
-struct tuple_sizes_equal;
-
-template <typename TUPLE>
-struct tuple_sizes_equal<TUPLE>{
-    static const size_t value = std::tuple_size<typename std::decay<TUPLE>::type>::value;
-};
-
-template <typename ...TUPLES>
-struct tuple_sizes_equal {
-    template <typename FIRST, typename ...REMAINING>
-    struct helper {
-        static const size_t value =
-            std::tuple_size<typename std::decay<FIRST>::type>::value;
-        static_assert(tuple_sizes_equal<REMAINING...>::value == value,
-                      "tuple sizes not equal");
-    };
-
-    static const size_t value = helper<TUPLES...>::value;
-};
-
-template <typename FUNC, typename ...TUPLES>
-class foreach_tuple_helper {
-    template <typename F, typename ...T>
-    friend void foreach_tuple(F&&, T&&...);
-
-    void operator()(std::index_sequence<>, FUNC &&func,
-                    TUPLES&& ...tuples) { }
-
-    template <size_t POS, size_t ...INDICES>
-    void operator()(std::index_sequence<POS, INDICES...>, FUNC &&func,
-                  TUPLES&& ...tuples) {
-        func(std::get<POS>(tuples)...);
-        (*this)(std::index_sequence<INDICES...>(),
-                std::forward<FUNC>(func),
-                std::forward<TUPLES>(tuples)...);
+template <size_t N>
+constexpr size_t check_array_equal(size_t const (&arr)[N]) {
+    size_t ret = 0;
+    for (size_t s : arr) {
+        ret = (s == arr[0]) ? s : throw "Sizes mismatch";
     }
-};
+    return ret;
+}
 
-template <typename FUNC, typename ...TUPLES>
-void foreach_tuple(FUNC &&func, TUPLES&& ...tuples) {
-    static const size_t size = tuple_sizes_equal<TUPLES...>::value;
+template <typename... TUPLES>
+static constexpr size_t const tuple_sizes_equal_v =
+    check_array_equal({std::tuple_size_v<std::decay_t<TUPLES>>...});
 
-    foreach_tuple_helper<FUNC, TUPLES...>()(std::make_index_sequence<size>(),
-                                            std::forward<FUNC>(func),
-                                            std::forward<TUPLES>(tuples)...);
+template <typename ...TUPLES>
+struct tuple_sizes_equal : public
+    std::integral_constant<size_t, tuple_sizes_equal_v<TUPLES...>> {};
+
+template <size_t N, typename... TUPLES>
+auto slice_tuples(TUPLES&&... tuples) {
+    return std::tie(std::get<N>(std::forward<TUPLES>(tuples))...);
+}
+
+
+template <typename FUNC, size_t... INDS, typename... TUPLES>
+void foreach_tuple_impl(FUNC&& func, std::index_sequence<INDS...>,
+                        TUPLES&&... tuples) {
+    static_cast<void>((... && (static_cast<void>(std::apply(std::forward<FUNC>(func),
+               slice_tuples<INDS>(std::forward<TUPLES>(tuples)...))), true)));
+}
+
+template <typename FUNC, typename... TUPLES>
+void foreach_tuple(FUNC&& func, TUPLES&&... tuples) {
+    foreach_tuple_impl(std::forward<FUNC>(func),
+                       std::make_index_sequence<tuple_sizes_equal_v<TUPLES...>>{},
+                       std::forward<TUPLES>(tuples)...);
 }
 
 template <typename FUNC, typename ...TUPLES>
@@ -129,96 +119,22 @@ void foreach_tuple_p(FUNC &&func, TUPLES&& ...tuples) {
                                               std::forward<TUPLES>(tuples)...);
 }
 
-template <typename FUNC, typename ...TUPLES>
-class map_tuple_helper {
-    template <typename F, typename ...T>
-    friend auto map_tuple(F&&, T&&...);
-    
-    std::tuple<> operator()(std::index_sequence<>, FUNC &&func,
-                    TUPLES&& ...tuples) { return std::tuple<>(); }
-
-    template <size_t POS, size_t ...INDICES>
-    auto operator()(std::index_sequence<POS, INDICES...>, FUNC &&func,
-                  TUPLES&& ...tuples) {
-        return std::tuple_cat(
-            std::make_tuple(func(std::get<POS>(tuples)...)),
-            (*this)(std::index_sequence<INDICES...>(),
-                    std::forward<FUNC>(func),
-                    std::forward<TUPLES>(tuples)...));
-    }
-    
-};
+template <typename FUNC, size_t... INDS, typename... TUPLES>
+auto map_tuple_impl(FUNC&& func,
+                    std::index_sequence<INDS...>,
+                    TUPLES&&... tuples) {
+    return std::make_tuple(
+            std::apply(std::forward<FUNC>(func),
+                       slice_tuples<INDS>(std::forward<TUPLES>(tuples)...))...);
+}
 
 template <typename FUNC, typename ...TUPLES>
 auto map_tuple(FUNC &&func, TUPLES&& ...tuples) {
-    static const size_t size = tuple_sizes_equal<TUPLES...>::value;
-
-    return map_tuple_helper<FUNC, TUPLES...>()(
-               std::make_index_sequence<size>(),
-               std::forward<FUNC>(func),
-               std::forward<TUPLES>(tuples)...);
+    return map_tuple_impl(std::forward<FUNC>(func),
+                          std::make_index_sequence<tuple_sizes_equal_v<TUPLES...>>{},
+                          std::forward<TUPLES>(tuples)...);
 }
 
-template <typename FUNC, typename ...TUPLES>
-class map_tuple_i_helper {
-    template <typename F, typename ...T>
-    friend auto map_tuple_i(F&&, T&&...);
-    
-    std::tuple<> operator()(std::index_sequence<>, FUNC &&func,
-                    TUPLES&& ...tuples) { return std::tuple<>(); }
-
-    template <size_t POS, size_t ...INDICES>
-    auto operator()(std::index_sequence<POS, INDICES...>, FUNC &&func,
-                  TUPLES&& ...tuples) {
-        return std::tuple_cat(
-            std::make_tuple(func(POS, std::get<POS>(tuples)...)),
-            (*this)(std::index_sequence<INDICES...>(),
-                    std::forward<FUNC>(func),
-                    std::forward<TUPLES>(tuples)...));
-    }
-    
-};
-
-template <typename FUNC, typename ...TUPLES>
-auto map_tuple_i(FUNC &&func, TUPLES&& ...tuples) {
-    static const size_t size = tuple_sizes_equal<TUPLES...>::value;
-
-    return map_tuple_i_helper<FUNC, TUPLES...>()(
-               std::make_index_sequence<size>(),
-               std::forward<FUNC>(func),
-               std::forward<TUPLES>(tuples)...);
-}
-
-template <typename FUNC, typename ...TUPLES>
-class map_tuple_p_helper {
-    template <typename F, typename ...T>
-    friend auto map_tuple_i(F&&, T&&...);
-    
-    std::tuple<> operator()(std::index_sequence<>, FUNC &&func,
-                    TUPLES&& ...tuples) { return std::tuple<>(); }
-
-    template <size_t POS, size_t ...INDICES>
-    auto operator()(std::index_sequence<POS, INDICES...>, FUNC &&func,
-                  TUPLES&& ...tuples) {
-        return std::tuple_cat(
-            std::make_tuple(
-                func.template operator()<POS>(std::get<POS>(tuples)...)),
-            (*this)(std::index_sequence<INDICES...>(),
-                    std::forward<FUNC>(func),
-                    std::forward<TUPLES>(tuples)...));
-    }
-    
-};
-
-template <typename FUNC, typename ...TUPLES>
-auto map_tuple_p(FUNC &&func, TUPLES&& ...tuples) {
-    static const size_t size = tuple_sizes_equal<TUPLES...>::value;
-
-    return map_tuple_p_helper<FUNC, TUPLES...>()(
-               std::make_index_sequence<size>(),
-               std::forward<FUNC>(func),
-               std::forward<TUPLES>(tuples)...);
-}
 
 template <size_t LAST_INDEX, typename FUNC, typename ...TUPLES>
 class reduce_tuple_helper {
