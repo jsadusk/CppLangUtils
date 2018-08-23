@@ -42,34 +42,45 @@ enum class pos_kind {
     run_time
 };
 
-template <pos_kind PK, typename FUNC>
-auto adapt_impl(FUNC&& func) {
-    if constexpr (PK == pos_kind::run_time) {
-        return [&func]<size_t i>() {
-            return [&func]<typename... ARGS>(ARGS&&... args) -> decltype(auto) {
-                return std::forward<FUNC>(func)(i, std::forward<ARGS>(args)...);
-            };
-        };
-    } else if constexpr (PK == pos_kind::compile_time) {
-        return [&func]<size_t i>() {
-            return [&func]<typename... ARGS>(ARGS&&... args) -> decltype(auto) {
-                return std::forward<FUNC>(func).template operator()<i>(std::forward<ARGS>(args)...);
-            };
-        };
-    } else {
-        return [&func]<size_t>() {
-            return [&func]<typename... ARGS>(ARGS&&... args) -> decltype(auto) {
-                return std::forward<FUNC>(func)(std::forward<ARGS>(args)...);
-            };
-        };
+template <pos_kind, size_t, typename> struct adapted;
+
+template <size_t I, typename FUNC>
+struct adapted<pos_kind::none, I, FUNC> {
+    FUNC&& func;
+    template <typename... ARGS>
+    decltype(auto) operator()(ARGS&&... args) const {
+        return std::forward<FUNC>(func)(std::forward<ARGS>(args)...);
     }
+};
+
+template <size_t I, typename FUNC>
+struct adapted<pos_kind::compile_time, I, FUNC> {
+    FUNC&& func;
+    template <typename... ARGS>
+    decltype(auto) operator()(ARGS&&... args) const {
+        return std::forward<FUNC>(func).template operator()<I>(std::forward<ARGS>(args)...);
+    }
+};
+
+template <size_t I, typename FUNC>
+struct adapted<pos_kind::run_time, I, FUNC> {
+    FUNC&& func;
+    template <typename... ARGS>
+    decltype(auto) operator()(ARGS&&... args) const {
+        return std::forward<FUNC>(func)(I, std::forward<ARGS>(args)...);
+    }
+};
+
+template <pos_kind PK, size_t I, typename FUNC>
+adapted<PK, I, FUNC&&> adapt_impl(FUNC&& func) {
+    return {std::forward<FUNC>(func)};
 }
 
 template <pos_kind PK, typename FUNC, size_t... INDS, typename... TUPLES>
 void foreach_tuple_impl(FUNC&& func, std::index_sequence<INDS...>,
                         TUPLES&&... tuples) {
     static_cast<void>((... && (static_cast<void>(
-        std::apply(adapt_impl<PK>(std::forward<FUNC>(func)).template operator()<INDS>(),
+        std::apply(adapt_impl<PK, INDS>(std::forward<FUNC>(func)),
                    slice_tuples<INDS>(std::forward<TUPLES>(tuples)...))), true)));
 }
 
@@ -102,7 +113,7 @@ auto map_tuple_impl(FUNC&& func,
                     std::index_sequence<INDS...>,
                     TUPLES&&... tuples) {
     return std::make_tuple(
-            std::apply(adapt_impl<PK>(std::forward<FUNC>(func)).template operator()<INDS>(),
+            std::apply(adapt_impl<PK, INDS>(std::forward<FUNC>(func)),
                        slice_tuples<INDS>(std::forward<TUPLES>(tuples)...))...);
 }
 
@@ -132,9 +143,10 @@ auto map_tuple_p(FUNC &&func, TUPLES&& ...tuples) {
 
 
 template <size_t LAST_INDEX, typename FUNC, typename ...TUPLES>
-class reduce_tuple_helper {
-    template <typename F, typename S, typename ...T>
-    friend auto reduce_tuple(F&&, S&&, T&&...);
+struct reduce_tuple_helper {
+    // clang doesn't like template friends.
+    // template <typename F, typename S, typename ...T>
+    // friend auto reduce_tuple(F&&, S&&, T&&...);
 
     template <typename ACCUM>
     auto operator()(std::index_sequence<LAST_INDEX>, FUNC &&func,
