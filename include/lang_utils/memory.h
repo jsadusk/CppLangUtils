@@ -33,6 +33,7 @@ public:
 
     untyped_unique_ptr& operator=(untyped_unique_ptr &&other) {
         m_ptr = std::move(other.m_ptr);
+        return *this;
     }
 };
 
